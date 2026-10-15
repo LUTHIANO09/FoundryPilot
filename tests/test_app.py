@@ -1,5 +1,7 @@
 import io
 import unittest
+import httpx2
+from openai import APIConnectionError, APIStatusError
 from contextlib import redirect_stdout
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -73,6 +75,59 @@ class MainTests(unittest.TestCase):
                 app.main()
 
         self.assertIn(answer, output.getvalue())
+
+    def test_http_error_is_handled(self):
+        client = MagicMock()
+
+        request = httpx2.Request(
+            "POST",
+            "https://example.com",
+        )
+        response = httpx2.Response(
+            401,
+            request=request,
+        )
+        error = APIStatusError(
+            "Unauthorized",
+            response=response,
+            body=None,
+        )
+        client.responses.create.side_effect = error
+
+        with patch(
+            "builtins.input",
+            side_effect=["normal", "What is a noun?"],
+        ), patch.object(app, "create_client", return_value=client):
+            with redirect_stdout(io.StringIO()) as output:
+                app.main()
+
+        self.assertIn("HTTP 401", output.getvalue())
+        self.assertIn("Check your authentication", output.getvalue())
+
+    def test_connection_error_is_handled(self):
+        client = MagicMock()
+
+        request = httpx2.Request(
+            "POST",
+            "https://example.com",
+        )
+        error = APIConnectionError(
+            message="Connection failed",
+            request=request,
+        )
+        client.responses.create.side_effect = error
+
+        with patch(
+            "builtins.input",
+            side_effect=["normal", "What is a noun?"],
+        ), patch.object(app, "create_client", return_value=client):
+            with redirect_stdout(io.StringIO()) as output:
+                app.main()
+
+        self.assertIn(
+            "Could not connect to Microsoft Foundry",
+            output.getvalue(),
+        )
 
 
 if __name__ == "__main__":
