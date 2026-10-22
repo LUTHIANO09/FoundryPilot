@@ -1,0 +1,13 @@
+﻿Microsoft Foundry is a platform for building, evaluating, and deploying generative AI applications and agents.
+
+Retrieval-augmented generation (RAG) retrieves relevant information from a knowledge source and supplies that information to a language model to help ground its response.
+
+Chunking splits a document into smaller passages. Chunk size affects the amount of context available for retrieval, while overlap helps preserve context across chunk boundaries.
+
+Keyword search matches query terms against document text. Vector search compares numerical representations called embeddings to find semantically similar content. Hybrid search combines keyword and vector retrieval.
+
+Groundedness measures whether an answer's claims are supported by the provided evidence.
+
+Answer relevance measures whether the answer addresses the user's question.
+
+Recall at k measures how many of the relevant items are retrieved among the top k results. Precision at k measures what proportion of the top k results are relevant.
