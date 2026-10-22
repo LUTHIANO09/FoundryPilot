@@ -46,6 +46,25 @@ class AgentWorkflowTests(unittest.TestCase):
         self.assertEqual(thread.messages[0]["role"], "user")
         self.assertEqual(thread.messages[2]["role"], "user")
 
+    def test_each_request_has_a_unique_run_id(self):
+        thread = AgentThread()
+
+        first_run = run_local_agent(
+            thread,
+            "What does Microsoft Foundry support?",
+            self.knowledge_dir,
+        )
+        second_run = run_local_agent(
+            thread,
+            "What is in the knowledge base?",
+            self.knowledge_dir,
+        )
+
+        self.assertNotEqual(first_run.id, second_run.id)
+        self.assertEqual(first_run.thread_id, second_run.thread_id)
+        self.assertEqual(first_run.status, "completed")
+        self.assertEqual(second_run.status, "completed")
+
     def test_no_matching_passages_returns_completed_run(self):
         thread = AgentThread()
 
