@@ -19,6 +19,11 @@ class MainTests(unittest.TestCase):
             output_text=answer,
             status="completed",
             incomplete_details=None,
+            usage=SimpleNamespace(
+                input_tokens=120,
+                output_tokens=35,
+                total_tokens=155,
+            ),
         )
         return client
 
@@ -83,6 +88,22 @@ class MainTests(unittest.TestCase):
                 app.main()
 
         self.assertIn(answer, output.getvalue())
+
+    def test_token_usage_is_printed(self):
+        client = self.make_client()
+
+        with patch(
+            "builtins.input",
+            side_effect=["normal", "What is a noun?"],
+        ), patch.object(app, "create_client", return_value=client):
+            with redirect_stdout(io.StringIO()) as output:
+                app.main()
+
+        printed = output.getvalue()
+        self.assertIn("Input tokens: 120", printed)
+        self.assertIn("Output tokens: 35", printed)
+        self.assertIn("Total tokens: 155", printed)
+
 
     def test_http_error_is_handled(self):
         client = MagicMock()

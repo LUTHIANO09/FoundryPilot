@@ -2,7 +2,13 @@
 import unittest
 from pathlib import Path
 
-from lesson01.agent import AgentThread, run_local_agent
+from lesson01.agent import (
+    AgentThread,
+    ApprovalRequest,
+    execute_approved_action,
+    resolve_approval,
+    run_local_agent,
+)
 
 
 class AgentWorkflowTests(unittest.TestCase):
@@ -74,17 +80,75 @@ class AgentWorkflowTests(unittest.TestCase):
 
         self.assertEqual(run.status, "completed")
         self.assertEqual(run.result, "No relevant passages were found.")
+        self.assertEqual(run.retrieved_count, 0)
 
     def test_missing_knowledge_directory_fails_run(self):
         thread = AgentThread()
         missing_dir = self.knowledge_dir / "missing"
 
-        run = run_local_agent(
-            thread, "What is Foundry?", missing_dir
-        )
+        run = run_local_agent(thread, "What is Foundry?", missing_dir)
 
         self.assertEqual(run.status, "failed")
         self.assertIn("Local tool failed:", run.result)
+        self.assertIn("FileNotFoundError", run.error)
+
+    def test_run_records_observability_metrics(self):
+        thread = AgentThread()
+
+        run = run_local_agent(
+            thread,
+            "What does Microsoft Foundry support?",
+            self.knowledge_dir,
+        )
+
+        self.assertTrue(run.started_at)
+        self.assertTrue(run.finished_at)
+        self.assertGreaterEqual(run.duration_ms, 0)
+        self.assertGreater(run.retrieved_count, 0)
+        self.assertIsNone(run.error)
+
+    def test_pending_approval_blocks_action(self):
+        request = ApprovalRequest(description="Publish a report")
+        executed = []
+
+        with self.assertRaises(PermissionError):
+            execute_approved_action(request, lambda: executed.append(True))
+
+        self.assertEqual(request.status, "pending")
+        self.assertEqual(executed, [])
+
+    def test_approved_request_allows_action(self):
+        request = ApprovalRequest(description="Publish a report")
+        resolve_approval(request, approved=True, decision_note="Reviewed")
+        executed = []
+
+        result = execute_approved_action(
+            request, lambda: executed.append("published") or "success"
+        )
+
+        self.assertEqual(request.status, "approved")
+        self.assertTrue(request.decided_at)
+        self.assertEqual(request.decision_note, "Reviewed")
+        self.assertEqual(executed, ["published"])
+        self.assertEqual(result, "success")
+
+    def test_rejected_request_blocks_action(self):
+        request = ApprovalRequest(description="Publish a report")
+        resolve_approval(request, approved=False, decision_note="Needs changes")
+        executed = []
+
+        with self.assertRaises(PermissionError):
+            execute_approved_action(request, lambda: executed.append(True))
+
+        self.assertEqual(request.status, "rejected")
+        self.assertEqual(executed, [])
+
+    def test_resolved_approval_cannot_be_changed(self):
+        request = ApprovalRequest(description="Publish a report")
+        resolve_approval(request, approved=True)
+
+        with self.assertRaises(ValueError):
+            resolve_approval(request, approved=False)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
-
 import os
 from pathlib import Path
+from time import perf_counter
 
 from openai import APIConnectionError, APIStatusError, OpenAI
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
@@ -77,15 +77,20 @@ def main():
 
     try:
         knowledge_dir = Path(__file__).parent / "knowledge"
+
+        retrieval_started = perf_counter()
         chunks = load_chunks(knowledge_dir)
         results = retrieve(question, chunks, top_k=3)
+        retrieval_ms = (perf_counter() - retrieval_started) * 1000
 
         print(f"\nRetrieved {len(results)} relevant passage(s).")
+        print(f"Retrieval latency: {retrieval_ms:.2f} ms")
 
         client = create_client()
 
         print("\nContacting Microsoft Foundry...")
 
+        model_started = perf_counter()
         response = client.responses.create(
             model=deployment_name,
             instructions=f"{instruction}\n\n{RAG_INSTRUCTION}",
@@ -93,6 +98,18 @@ def main():
             reasoning={"effort": "low"},
             max_output_tokens=200,
         )
+        model_latency_ms = (perf_counter() - model_started) * 1000
+
+        print(f"Model latency: {model_latency_ms:.2f} ms")
+
+        usage = response.usage
+
+        if usage is not None:
+            print(f"Input tokens: {usage.input_tokens}")
+            print(f"Output tokens: {usage.output_tokens}")
+            print(f"Total tokens: {usage.total_tokens}")
+        else:
+            print("Token usage was not provided by the model response.")
 
         answer = response.output_text.strip()
 
